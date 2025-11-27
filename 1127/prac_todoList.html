@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Todo List</title>
+
+    <style>
+        /* ===== 페이지 전체 스타일 ===== */
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        /* ===== 앱 전체 박스 ===== */
+        #app {
+            width: 350px;
+            margin: auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 8px rgba(0,0,0,0.1);
+        }
+
+        ul { padding: 0; }
+
+        /* ===== TODO 항목 스타일 ===== */
+        li {
+            list-style: none;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* 완료된 항목 표시 */
+        li.completed span {
+            text-decoration: line-through;
+            color: #aaa;
+        }
+
+        .filters button {
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <h2>Todo List</h2>
+
+    <!-- 입력창 + 버튼 -->
+    <input id="todoInput" type="text" placeholder="할 일을 입력하세요">
+    <button id="addBtn">추가</button>
+
+    <!-- TODO 목록 -->
+    <ul id="todoList"></ul>
+
+    <!-- 남은 할 일 -->
+    <p>남은 할 일: <span id="remaining">0</span>개</p>
+
+    <!-- 필터 버튼 -->
+    <div class="filters">
+        <button onclick="filterTodos('all')">전체</button>
+        <button onclick="filterTodos('active')">미완료</button>
+        <button onclick="filterTodos('completed')">완료</button>
+    </div>
+
+    <!-- 완료 항목 전부 삭제 -->
+    <button style="margin-top:10px; color:red;" onclick="clearCompleted()">
+        완료된 항목 모두 삭제
+    </button>
+</div>
+
+<script>
+    /* ============================================
+       📌 전역 변수: todos 저장 & 현재 필터 상태 저장
+       ============================================ */
+    let todos = [];
+    let currentFilter = "all";
+
+    /* ============================================
+       📌 DOM 요소 선택(querySelector 사용)
+       ============================================ */
+    const input = document.querySelector("#todoInput");
+    const addBtn = document.querySelector("#addBtn");
+    const todoList = document.querySelector("#todoList");
+    const remaining = document.querySelector("#remaining");
+
+    /* ============================================
+       📌 엔터키 입력 시 addTodo() 실행
+       ============================================ */
+    input.addEventListener("keydown", e => {
+        if (e.key === "Enter") {
+            addTodo();
+        }
+    });
+
+    /* ============================================
+       📌 추가 버튼 클릭 → addTodo 실행
+       ============================================ */
+    addBtn.addEventListener("click", addTodo);
+
+    /* =============================================================
+       📌 addTodo()
+       - 입력값 검증 → 통과하면 todo 목록에 항목 추가하는 함수
+       ============================================================= */
+    function addTodo() {
+        const text = input.value.trim(); // 앞뒤 공백 제거
+
+        // 0) 입력이 비었는지 확인
+        if (text.length === 0) {
+            alert("내용을 입력하세요.");
+            return;
+        }
+
+        // 1) 한글 자모(ㄱ-ㅎ, ㅏ-ㅣ)가 포함되면 오류
+        //    이유: 'ㄱ', 'ㅎ', 'ㅁㄴㅇ', 'ㅎㅏ' 같은 미완성 글자는 "온전한 단어"가 아니기 때문
+        if (/[ㄱ-ㅎㅏ-ㅣ]/.test(text)) {
+            alert("올바른 단어를 입력하세요.");
+            return;
+        }
+
+        // 2) 공백 검사 → 연속된 공백(2개 이상)은 금지
+        //    "운동 2번" OK, "clean test" OK    
+        //    하지만 "run   test" 같은 경우는 의미 없는 형태 → 금지
+        if (/ {2,}/.test(text)) {
+            alert("공백은 한 번만 사용할 수 있습니다.");
+            return;
+        }
+
+        // ⚡ 여기까지 통과하면 "온전한 단어"라고 판단하고 그대로 저장됨
+
+        // 3) todo 목록에 새로운 항목 추가
+        todos.push({
+            id: Date.now(),  // 고유 ID
+            text: text,      // 입력한 내용 그대로 저장
+            completed: false // 기본값: 미완료
+        });
+
+        input.value = ""; // 입력창 초기화
+        render();         // 화면 갱신
+    }
+
+    /* =====================================================
+       📌 toggleTodo()
+       - 특정 항목의 완료/미완료 상태를 반전시키는 기능
+       ===================================================== */
+    function toggleTodo(id) {
+        todos = todos.map(todo =>
+            todo.id === id ? { ...todo, completed: !todo.completed } : todo
+        );
+        render();
+    }
+
+    /* =====================================================
+       📌 deleteTodo()
+       - 특정 todo 삭제
+       ===================================================== */
+    function deleteTodo(id) {
+        todos = todos.filter(todo => todo.id !== id);
+        render();
+    }
+
+    /* =====================================================
+       📌 filterTodos()
+       - "전체 / 미완료 / 완료" 필터링 기능
+       ===================================================== */
+    function filterTodos(filter) {
+        currentFilter = filter;
+        render();
+    }
+
+    /* =====================================================
+       📌 clearCompleted()
+       - 완료된 todo 모두 삭제
+       ===================================================== */
+    function clearCompleted() {
+        todos = todos.filter(todo => !todo.completed);
+        render();
+    }
+
+    /* =====================================================
+       📌 render()
+       - 필터 적용 후 화면에 목록을 다시 표시하는 함수
+       ===================================================== */
+    function render() {
+        // 목록 초기화
+        todoList.innerHTML = "";
+
+        // 필터에 맞는 목록만 선택
+        let filtered = todos;
+        if (currentFilter === "active") {
+            filtered = todos.filter(t => !t.completed);
+        } else if (currentFilter === "completed") {
+            filtered = todos.filter(t => t.completed);
+        }
+
+        // DOM에 추가
+        filtered.forEach(todo => {
+            const li = document.createElement("li");
+            li.className = todo.completed ? "completed" : "";
+
+            li.innerHTML = `
+                <input type="checkbox" ${todo.completed ? "checked" : ""} 
+                    onclick="toggleTodo(${todo.id})">
+                <span style="margin-left:8px;">${todo.text}</span>
+                <button onclick="deleteTodo(${todo.id})">삭제</button>
+            `;
+
+            todoList.appendChild(li);
+        });
+
+        // 남은 할 일(미완료) 계산 후 출력
+        remaining.textContent = todos.filter(t => !t.completed).length;
+    }
+</script>
+
+</body>
+</html>
