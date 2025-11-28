@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h1>스톱워치</h1>
+    <div id="stopWatch">00:00:00</div>
+    <button id="startBtn">시작</button>
+    <button id="stopBtn">정지</button>
+    <button id="resetBtn">초기화</button>
+
+    <script>
+        let startTime = 0; // 시작 시간
+        let elapsedTime = 0; // 경과된 시간
+        let intervalId = null; 
+        let isRunning = false; // 실행 중인지 여부
+        
+        const stopWatch = document.querySelector("#stopWatch");
+        const startBtn = document.querySelector("#startBtn");        
+        const stopBtn = document.querySelector("#stopBtn");
+        const resetBtn = document.querySelector("#resetBtn");
+        
+        const updatestopWatch = () => {
+            const currentTime = Date.now();
+            elapsedTime = currentTime - startTime;
+
+            const totalSeconds = Math.floor(elapsedTime / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            const milliseconds = Math.floor((elapsedTime % 1000) / 10);
+
+            stopWatch.textContent = 
+            `${String(minutes).padStart(2, "0")} :` +
+            `${String(seconds).padStart(2, "0")} :` +
+            `${String(milliseconds).padStart(2, "0")} :`;
+        };
+
+        startBtn.addEventListener("click", () => {
+            if (!isRunning) {
+                startTime = Date.now() - elapsedTime;
+                intervalId = setInterval(updatestopWatch, 10);
+                isRunning = true;
+            };
+        });
+
+        stopBtn.addEventListener("click", () => {
+            if (isRunning) {
+                clearInterval(intervalId);
+                isRunning = false;
+            };
+        });
+
+        resetBtn.addEventListener("click", () => {
+            clearInterval(intervalId);
+            elapsedTime = 0;
+            isRunning = false;
+            stopWatch.textContent = "00:00:00";
+        });
+    </script>
+</body>
+</html>
