@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>날씨 앱</title>
+    <title>간단 날씨 앱</title>
     
     <style>
         body {
@@ -66,7 +66,7 @@
             border: 1px solid #f5c6cb;
         }
 
-        /* 🚨 날씨 정보 박스 스타일 (네모 박스 크기 조절) */
+        /* 날씨 정보 박스 스타일 (네모 박스 크기 조절) */
         .weather-info {
             background-color: white;
             border: 1px solid #007bff;
@@ -112,7 +112,7 @@
             <input
                 type="text"
                 id="city-input"
-                placeholder="도시 이름을 입력하세요 (예 서울, Busan)"
+                placeholder="도시 이름을 입력하세요 (예: Seoul, Tokyo, London)"
             />
             <button id="search-button">검색</button>
         </div>
@@ -120,7 +120,9 @@
         <div id="loading" class="loading">
             
 
+
 [Image of a spinning loading icon]
+
 
             <p>날씨 정보를 불러오는 중...</p>
         </div>
@@ -176,6 +178,7 @@
         const errorDiv = document.getElementById('error-message');
         const weatherInfoDiv = document.getElementById('weather-info');
 
+        // 날씨 정보 출력 요소들
         const cityNameH2 = document.getElementById('city-name');
         const countryNameP = document.getElementById('country-name');
         const weatherIconImg = document.getElementById('weather-icon');
@@ -187,19 +190,21 @@
 
         // 2. 헬퍼 함수: 로딩 상태 표시/숨기기
         function toggleLoading(show) {
-            loadingDiv.classList.toggle('show', show);
+            if(loadingDiv) loadingDiv.classList.toggle('show', show);
             // 로딩 중일 때는 다른 모든 것을 숨깁니다.
-            weatherInfoDiv.classList.remove('show');
-            errorDiv.classList.remove('show');
+            if(weatherInfoDiv) weatherInfoDiv.classList.remove('show');
+            if(errorDiv) errorDiv.classList.remove('show');
         }
 
         // 3. 헬퍼 함수: 에러 메시지 표시
         function displayError(message) {
-            errorDiv.textContent = '오류: ' + message;
-            errorDiv.classList.add('show');
+            if(errorDiv) { // 🚨 안전 확인: errorDiv가 null이 아닌지 확인
+                errorDiv.textContent = '오류: ' + message;
+                errorDiv.classList.add('show');
+            }
             // 에러가 발생했으므로 로딩과 날씨 정보는 숨깁니다.
-            weatherInfoDiv.classList.remove('show');
-            loadingDiv.classList.remove('show');
+            if(weatherInfoDiv) weatherInfoDiv.classList.remove('show');
+            if(loadingDiv) loadingDiv.classList.remove('show');
         }
 
         // 4. API를 호출하고 데이터를 처리하는 메인 함수
@@ -213,17 +218,11 @@
             // 1. 로딩 화면 표시 및 기존 정보 숨기기
             toggleLoading(true);
 
-            // 💡 [최종 수정 로직] 단일 도시 이름 검색 시 ",kr"을 추가하여 정확도를 높임
-            let searchQuery = trimmedCity;
-            
-            if (!trimmedCity.includes(',')) {
-                // 콤마가 없는 단일 도시 이름이라면, ",kr"을 자동으로 추가
-                searchQuery = trimmedCity + ',kr';
-            } 
-            
+            // 💡 [해외 검색 가능하도록 수정 완료] 입력된 도시 이름을 그대로 사용합니다.
+            const searchQuery = trimmedCity;
             const encodedQuery = encodeURIComponent(searchQuery); 
             
-            // 최종 URL 구성
+            // 최종 URL 구성 (units=metric: 섭씨, lang=kr: 한글 출력)
             const url = `${BASE_URL}?q=${encodedQuery}&appid=${API_KEY}&units=metric&lang=kr`;
 
             try {
@@ -231,7 +230,16 @@
 
                 if (!response.ok) {
                     const errorData = await response.json();
-                    throw new Error(errorData.message || '날씨 정보를 가져오는 데 실패했습니다. 도시 이름을 확인해 주세요.');
+                    let errorMessage = errorData.message || '날씨 정보를 가져오는 데 실패했습니다.';
+                    
+                    // API에서 에러 응답이 왔을 때 더 친절한 메시지로 변경
+                    if (errorMessage.toLowerCase().includes('city not found')) {
+                        errorMessage = `도시 "${trimmedCity}"의 날씨 정보를 찾을 수 없습니다. 철자를 확인해 주세요.`;
+                    } else if (errorMessage.toLowerCase().includes('invalid api key')) {
+                        errorMessage = 'API 키가 유효하지 않습니다. 코드의 API_KEY를 확인하세요.';
+                    }
+
+                    throw new Error(errorMessage);
                 }
 
                 const data = await response.json();
@@ -242,12 +250,13 @@
 
             } catch (error) {
                 // 4. 오류 발생 시 로딩 화면 숨기기 및 에러 메시지 표시
+                toggleLoading(false);
                 displayError(error.message);
                 console.error("날씨 정보 호출 중 오류 발생:", error);
             }
         }
 
-        // 5. DOM에 날씨 정보를 렌더링하는 함수 (구름 양 분류 적용)
+        // 5. DOM에 날씨 정보를 렌더링하는 함수 (안전성 강화)
         function displayWeather(data) {
             // 날씨 정보 추출
             const temp = Math.round(data.main.temp); 
@@ -257,40 +266,38 @@
             const pressure = data.main.pressure;
             const iconCode = data.weather[0].icon; 
             
-            // 💡 [구름 양 분류 로직 적용]
+            // 구름 양 분류 로직 
             const cloudPercentage = data.clouds.all;
             let description;
 
             if (cloudPercentage >= 51) {
-                // 51% 이상: 흐림 (Broken Clouds, Overcast Clouds 포함)
                 description = '흐림';
             } else if (cloudPercentage >= 1) {
-                // 1% ~ 50% 사이: 구름 많음 (Few Clouds, Scattered Clouds 포함)
                 description = '구름 많음';
             } else {
-                // 0%: 맑음 (Clear sky)
                 description = '맑음';
             }
             
             // 날씨 아이콘 URL
             const iconUrl = `https://openweathermap.org/img/wn/${iconCode}@2x.png`;
 
-            // HTML 요소에 데이터 삽입
-            cityNameH2.textContent = data.name;
-            countryNameP.textContent = data.sys.country;
+            // HTML 요소에 데이터 삽입 (🚨 모든 요소의 존재 유무를 확인하는 안전 로직 추가)
+            if (cityNameH2) cityNameH2.textContent = data.name;
+            if (countryNameP) countryNameP.textContent = data.sys.country;
             
-            // 온도와 함께 변경된 description 사용
-            temperatureDiv.textContent = `${temp}°C / ${description}`;
+            if (temperatureDiv) temperatureDiv.textContent = `${temp}°C / ${description}`;
 
-            weatherIconImg.src = iconUrl;
-            weatherIconImg.alt = data.weather[0].description; // alt 태그는 원래 값 유지
+            if (weatherIconImg) {
+                weatherIconImg.src = iconUrl;
+                weatherIconImg.alt = data.weather[0].description;
+            }
             
-            feelsLikeSpan.textContent = feelsLike;
-            humiditySpan.textContent = humidity;
-            windSpeedSpan.textContent = windSpeed;
-            pressureSpan.textContent = pressure;
+            if (feelsLikeSpan) feelsLikeSpan.textContent = feelsLike;
+            if (humiditySpan) humiditySpan.textContent = humidity;
+            if (windSpeedSpan) windSpeedSpan.textContent = windSpeed;
+            if (pressureSpan) pressureSpan.textContent = pressure;
 
-            weatherInfoDiv.classList.add('show'); // 날씨 정보 섹션 표시
+            if (weatherInfoDiv) weatherInfoDiv.classList.add('show'); // 날씨 정보 섹션 표시
         }
 
         // 6. 이벤트 리스너 설정
@@ -299,14 +306,16 @@
             fetchWeather(city);
         };
         
-        searchButton.addEventListener('click', handleSearch);
+        if (searchButton) searchButton.addEventListener('click', handleSearch);
 
-        cityInput.addEventListener('keypress', (event) => {
-            if (event.key === 'Enter') {
-                handleSearch();
-            }
-        });
-        
+        if (cityInput) {
+             cityInput.addEventListener('keypress', (event) => {
+                if (event.key === 'Enter') {
+                    handleSearch();
+                }
+            });
+        }
+       
         // 초기 로딩 시 서울 날씨를 가져옴
         fetchWeather('Seoul');
     </script>
